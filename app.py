@@ -397,13 +397,34 @@ if missing_standard_cols:
 df['Material_Group'] = "Uncategorized" # Default value
 
 # Categorize based on keywords. Case-insensitive.
-df.loc[df['Source_Material'].str.contains("Pineapple|Abacaxi|Banana Leaf|Food Waste|Kitchen Waste", case=False, na=False), 'Material_Group'] = "Fruit & Vegetable Waste"
-df.loc[df['Source_Material'].str.contains("Coffee|SCG", case=False, na=False), 'Material_Group'] = "Coffee Waste" 
-df.loc[df['Source_Material'].str.contains("Manure|Dung|Cattle Manure|Cow Manure|Pig Manure|Bagasse:|B0|B25|B50|B75", case=False, na=False), 'Material_Group'] = "Manure & Related"
-df.loc[df['Source_Material'].str.contains("Grass Clippings|Water Hyacinth|Parthenium|Bagasse \\(100:0\\)|Pure Vermicompost|Matka khad|Kitchen-Yard Waste", case=False, na=False), 'Material_Group'] = "Diverse Plant Waste"
-df.loc[df['Source_Material'].str.contains("Newspaper|Paper Waste|Cardboard", case=False, na=False), 'Material_Group'] = "Paper & Cellulose Waste"
+# More robust categorization based on provided data
+df.loc[df['Source_Material'].str.contains(
+    "Pineapple|Abacaxi|Banana Leaf|Food Waste|Kitchen Waste|Vegetable Waste", 
+    case=False, na=False
+), 'Material_Group'] = "Fruit & Vegetable Waste"
+
+df.loc[df['Source_Material'].str.contains(
+    "Coffee|SCG|Borra de Café|Coffee Processing Waste", 
+    case=False, na=False
+), 'Material_Group'] = "Coffee Waste" 
+
+df.loc[df['Source_Material'].str.contains(
+    "Manure|Dung|Cattle Manure|Cow Manure|Pig Manure|Horse Manure|Matka khad|Bovine Manure|B0|B25|B50|B75|CD|PM", 
+    case=False, na=False
+), 'Material_Group'] = "Manure & Related"
+
+df.loc[df['Source_Material'].str.contains(
+    "Grass Clippings|Water Hyacinth|Parthenium|Pure Vermicompost|Kitchen-Yard Waste|Garden Waste|Straw|Bagasse \\(100:0\\)|Bagasse Puro", 
+    case=False, na=False
+), 'Material_Group'] = "Diverse Plant Waste"
+
+df.loc[df['Source_Material'].str.contains(
+    "Newspaper|Paper Waste|Cardboard|Kitchen Paper Waste", 
+    case=False, na=False
+), 'Material_Group'] = "Paper & Cellulose Waste"
 
 df['Material_Group'] = df['Material_Group'].astype('category')
+
 
 # --- NOVO BLOCO: Visualize Tipos de Materiais por Grupo ---
 st.markdown("---")
@@ -422,6 +443,7 @@ with st.expander("Clique para ver quais 'Materiais de Origem' pertencem a cada '
             st.write("Nenhum material encontrado para este grupo.")
 st.markdown("---")
 # --- FIM DO NOVO BLOCO ---
+
 
 # Variables for analysis (these use the standardized internal names)
 numerical_variables = {
