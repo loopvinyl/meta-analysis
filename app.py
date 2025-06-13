@@ -441,23 +441,23 @@ df.loc[df['Source_Material'].str.contains(
 df['Material_Group'] = df['Material_Group'].astype('category')
 
 
-# --- NOVO BLOCO: Visualize Tipos de Materiais por Grupo ---
+# --- NEW BLOCK: Visualize Material Types by Group ---
 st.markdown("---")
-st.subheader("🔍 Explore Materiais de Origem em Cada Grupo")
-with st.expander("Clique para ver quais 'Materiais de Origem' pertencem a cada 'Grupo de Material'"):
-    # Crie uma lista única dos grupos e seus materiais de origem correspondentes
-    # Usamos df.dropna() para garantir que apenas dados válidos sejam considerados
+st.subheader("🔍 Explore Source Materials in Each Group")
+with st.expander("Click to see which 'Source Materials' belong to each 'Material Group'"):
+    # Create a unique list of groups and their corresponding source materials
+    # Use df.dropna() to ensure only valid data is considered
     grouped_materials = df.groupby('Material_Group')['Source_Material'].unique()
     
-    # Exiba cada grupo e seus materiais
+    # Display each group and its materials
     for group, materials in grouped_materials.items():
         st.write(f"**{group}**:")
         if len(materials) > 0:
             st.write(", ".join(materials))
         else:
-            st.write("Nenhum material encontrado para este grupo.")
+            st.write("No materials found for this group.")
 st.markdown("---")
-# --- FIM DO NOVO BLOCO ---
+# --- END OF NEW BLOCK ---
 
 
 # Variables for analysis (these use the standardized internal names)
