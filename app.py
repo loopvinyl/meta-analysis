@@ -187,7 +187,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
                                             columns=data_clean[group_var_name].unique())
                     for idx, row in tukey_df.iterrows():
                         group1 = row['group1']
-                        group2 = row['group['] # Typo corrected, should be 'group2'
+                        group2 = row['group2'] # Corrected: was 'group['' previously
                         p_adj = row['p-adj']
                         p_matrix.loc[group1, group2] = p_adj
                         p_matrix.loc[group2, group1] = p_adj # Symmetric
@@ -337,12 +337,13 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
 
 # --- 2. Streamlit Page Configuration ---
 st.set_page_config(
-    page_title="Vermicompost Meta-analysis",
+    page_title="Vermicompost Meta-analysis", # This could be made more dynamic if needed
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-st.title("🔬 Metanalytical Review of Vermicomposts by Waste Type")
+# --- Updated App Title ---
+st.title("🔬 Meta-analysis of Vermicompost: Waste Type Impacts on N, K, and pH")
 st.markdown("This interactive application allows you to explore the statistical test results for Nitrogen, Phosphorus, Potassium, pH, and C/N Ratio in vermicomposts, grouped by source material.")
 st.markdown("---")
 
@@ -363,6 +364,8 @@ if original_source_col not in df.columns:
 df.rename(columns={original_source_col: 'Source_Material'}, inplace=True)
 
 # --- Numeric Columns Check ---
+# Updated based on common naming and user's specific input: pH_final, C_N_Ratio_final are kept
+# N_perc, P_perc, K_perc are common and now enforced.
 required_numeric_cols = ["N_perc", "P_perc", "K_perc", "pH_final", "C_N_Ratio_final"]
 missing_cols = [col for col in required_numeric_cols if col not in df.columns]
 
