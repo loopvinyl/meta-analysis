@@ -3,313 +3,199 @@ import streamlit as st
 import altair as alt
 from scipy import stats
 from statsmodels.formula.api import ols
-from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import scikit_posthocs as sp
 import numpy as np
 
-# --- Improved Helper Function for Compact Letter Display (CLD) ---
-def get_compact_letter_display(p_values_matrix, group_names):
-    """Improved CLD function with better handling of non-significant groups"""
-    sorted_groups = sorted(group_names)
-    significant_pairs = []
-    
-    # Handle different matrix types
-    if isinstance(p_values_matrix, pd.DataFrame):
-        matrix = p_values_matrix
-    else:
-        matrix = pd.DataFrame(
-            p_values_matrix, 
-            index=group_names,
-            columns=group_names
-        )
-    
-    # Collect significant pairs
-    for i, g1 in enumerate(sorted_groups):
-        for j, g2 in enumerate(sorted_groups[i+1:], i+1):
-            p_val = matrix.loc[g1, g2] if g1 in matrix.index and g2 in matrix.columns else 1.0
-            if p_val < 0.05:
-                significant_pairs.append((g1, g2))
-    
-    # Assign letters to groups
-    groups_letters = {g: [] for g in sorted_groups}
-    current_letter = ord('a')
-    
-    # Process groups until all are assigned
-    while sorted_groups:
-        group = sorted_groups.pop(0)
-        if not groups_letters[group]:
-            groups_letters[group].append(chr(current_letter))
-            current_letter += 1
-        
-        # Find non-conflicting groups
-        for other in sorted_groups[:]:
-            if (group, other) not in significant_pairs and (other, group) not in significant_pairs:
-                groups_letters[other] = groups_letters[group].copy()
-                sorted_groups.remove(other)
-    
-    return {g: ''.join(letters) for g, letters in groups_letters.items()}
+# --- 1. Carregamento de Dados ---
+# O arquivo dados_vermicomposto.xlsx deve estar na mesma pasta que este script.
+try:
+    df = pd.read_excel('dados_vermicomposto.xlsx')
+except FileNotFoundError:
+    st.error("Erro: Arquivo 'dados_vermicomposto.xlsx' não encontrado. Por favor, certifique-se de que ele está na mesma pasta que este script.")
+    st.stop()
 
-# --- Enhanced Main Analysis Function ---
-def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
-    st.markdown(f"#### Analysis for: **{dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
+# Converte 'Material_Group' para categoria para garantir tratamento correto
+# Assumindo que a coluna de agrupamento se chama 'Material_Group'. Ajuste se for diferente.
+if 'Material_Group' in df.columns:
+    df['Material_Group'] = df['Material_Group'].astype('category')
+else:
+    st.error("Erro: Coluna 'Material_Group' não encontrada no arquivo de dados. Por favor, renomeie sua coluna de agrupamento ou ajuste o código.")
+    st.stop()
 
-    # Data cleaning with informative messages
-    initial_count = len(data)
-    data_clean = data.dropna(subset=[dependent_var_name, group_var_name]).copy()
-    removed_count = initial_count - len(data_clean)
-    
-    if removed_count > 0:
-        st.info(f"Removed {removed_count} rows with missing values")
-    
-    unique_groups = data_clean[group_var_name].unique()
-    num_groups = len(unique_groups)
-    
-    if num_groups < 2:
-        st.warning(f"Not enough groups ({num_groups}) for statistical analysis")
+# --- 2. Configuração da Página Streamlit ---
+st.set_page_config(
+    page_title="Metanálise de Vermicompostos",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.title("🔬 Análise Metanalítica de Vermicompostos por Tipo de Resíduo")
+st.markdown("Este aplicativo interativo permite explorar os resultados dos testes estatísticos de Nitrogênio, Fósforo, Potássio, pH e Razão C/N em vermicompostos, agrupados por material de origem.")
+st.markdown("---")
+
+# --- 3. Sidebar para Seleção de Variáveis ---
+st.sidebar.header("Configurações da Análise")
+variavel_selecionada = st.sidebar.selectbox(
+    "Selecione a Variável para Análise:",
+    ['N_perc', 'P_perc', 'K_perc', 'pH_final', 'C_N_Ratio_final'],
+    format_func=lambda x: {
+        'N_perc': 'Nitrogênio (%)',
+        'P_perc': 'Fósforo (%)',
+        'K_perc': 'Potássio (%)',
+        'pH_final': 'pH',
+        'C_N_Ratio_final': 'Razão C/N'
+    }[x]
+)
+
+st.sidebar.markdown("---")
+st.sidebar.info("Os testes são realizados automaticamente. Os resultados exibem os p-valores para a homogeneidade de variâncias (Levene), normalidade (Shapiro-Wilk) e a comparação entre grupos (ANOVA ou Kruskal-Wallis).")
+
+# --- 4. Função para realizar e exibir os testes estatísticos ---
+def run_statistical_analysis(data, var_name, group_col):
+    st.subheader(f"Resultados para: **{variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
+
+    # Remove NaNs para os testes
+    data_clean = data[[var_name, group_col]].dropna()
+
+    if data_clean.empty:
+        st.warning(f"Não há dados suficientes para a variável '{var_name}' após remover valores ausentes.")
         return
 
-    # Homogeneity of Variance Test
-    with st.expander("Homogeneity of Variance (Levene's Test)"):
-        groups = [data_clean.loc[data_clean[group_var_name]==g, dependent_var_name] 
-                 for g in unique_groups]
-        
-        if any(len(g) < 2 for g in groups):
-            st.warning("Some groups have less than 2 observations - test skipped")
-            homogeneous_variances = False
-        else:
-            try:
-                stat, p_levene = stats.levene(*groups)
-                st.write(f"Levene's Statistic: {stat:.4f}, p-value: {p_levene:.4f}")
-                homogeneous_variances = p_levene >= 0.05
-                st.success("Variances ARE homogeneous") if homogeneous_variances \
-                    else st.warning("Variances are NOT homogeneous")
-            except Exception as e:
-                st.error(f"Levene's test failed: {str(e)}")
-                homogeneous_variances = False
+    groups = data_clean[group_col].unique()
+    num_groups = len(groups)
 
-    # Normality Test
-    with st.expander("Normality Test (Shapiro-Wilk)"):
-        normality_results = []
-        normality_by_group = True
-        
-        for group in unique_groups:
-            group_data = data_clean.loc[data_clean[group_var_name]==group, dependent_var_name]
-            n = len(group_data)
-            
-            if n < 3:
-                result = {'Group': group, 'n': n, 'W': None, 'p-value': None, 
-                          'Result': 'Insufficient data (n<3)'}
-                normality_by_group = False
+    if num_groups < 2:
+        st.warning(f"Apenas {num_groups} grupo(s) de material. Não é possível realizar testes de comparação entre grupos.")
+        st.markdown("#### Visualização dos Dados (Boxplot)")
+        chart = alt.Chart(data_clean).mark_boxplot(size=50).encode(
+            x=alt.X(group_col + ':N', title="Grupo de Material"),
+            y=alt.Y(var_name + ':Q', title=f"{variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', '')}"),
+            tooltip=[group_col, alt.Tooltip(var_name, title=variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', ''))]
+        ).properties(
+            title=f"Distribuição de {variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', '')} por Grupo de Material"
+        )
+        st.altair_chart(chart, use_container_width=True)
+        return
+
+    st.markdown(f"**Número total de observações:** {len(data_clean)}")
+    st.markdown(f"**Número de grupos de materiais:** {num_groups}")
+
+    # --- Teste de Levene (Homogeneidade de Variâncias) ---
+    st.markdown("#### Teste de Levene (Homogeneidade de Variâncias)")
+    try:
+        # Filtra grupos com dados suficientes para o teste de Levene (mínimo 2 observações por grupo)
+        levene_data = []
+        valid_groups_for_levene = []
+        for g in groups:
+            group_data = data_clean[var_name][data_clean[group_col] == g].dropna()
+            if len(group_data) >= 2:
+                levene_data.append(group_data)
+                valid_groups_for_levene.append(g)
+
+        if len(levene_data) >= 2: # Levene precisa de pelo menos 2 grupos com dados
+            stat_levene, p_levene = stats.levene(*levene_data)
+            st.write(f"Estatística de Levene: {stat_levene:.4f}, p-valor: {p_levene:.4f}")
+            if p_levene >= 0.05:
+                st.success("✅ As variâncias são homogêneas (p-valor ≥ 0.05).")
+                homogeneity_met = True
             else:
-                try:
-                    W, p = stats.shapiro(group_data)
-                    result = {'Group': group, 'n': n, 'W': f"{W:.4f}", 
-                              'p-value': f"{p:.4f}", 
-                              'Result': 'Normal' if p >= 0.05 else 'Non-normal'}
-                    if p < 0.05: 
-                        normality_by_group = False
-                except Exception as e:
-                    result = {'Group': group, 'n': n, 'W': 'Error', 
-                              'p-value': 'Error', 'Result': str(e)}
-                    normality_by_group = False
-            
-            normality_results.append(result)
-        
-        st.dataframe(pd.DataFrame(normality_results))
-        
-        if normality_by_group:
-            st.success("All groups meet normality assumption")
+                st.error("❌ As variâncias NÃO são homogêneas (p-valor < 0.05).")
+                homogeneity_met = False
         else:
-            st.warning("Normality assumption violated in at least one group")
+            st.warning("Não há grupos suficientes com 2 ou mais observações para o Teste de Levene.")
+            homogeneity_met = False
+    except ValueError as e:
+        st.warning(f"Não foi possível realizar o Teste de Levene: {e}.")
+        homogeneity_met = False
 
-    # Statistical Testing
-    st.markdown("#### Statistical Test Results")
-    cld_letters = {}
-    
-    if homogeneous_variances and normality_by_group:
-        st.info("Using **parametric ANOVA** (conditions met)")
-        try:
-            model = ols(f'{dependent_var_name} ~ C({group_var_name})', data=data_clean).fit()
-            anova_table = anova_lm(model, typ=2)
-            
-            with st.expander("ANOVA Results"):
-                st.dataframe(anova_table.style.format("{:.4f}"))
-                
-                p_value = anova_table.loc[f'C({group_var_name})', 'PR(>F)']
-                if p_value < 0.05:
-                    st.success("Significant difference detected (p < 0.05)")
-                    
-                    # Post-hoc test
-                    st.markdown("##### Tukey HSD Post-hoc Test")
-                    tukey = pairwise_tukeyhsd(data_clean[dependent_var_name], 
-                                              data_clean[group_var_name])
-                    st.text(str(tukey))
-                    
-                    # Create p-value matrix for CLD
-                    tukey_df = pd.DataFrame(tukey._results_table.data[1:], 
-                                           columns=tukey._results_table.data[0])
-                    p_matrix = pd.DataFrame(
-                        1.0, 
-                        index=unique_groups, 
-                        columns=unique_groups
-                    )
-                    
-                    for _, row in tukey_df.iterrows():
-                        g1, g2 = row['group1'], row['group2']
-                        p_matrix.loc[g1, g2] = row['p-adj']
-                        p_matrix.loc[g2, g1] = row['p-adj']
-                    
-                    cld_letters = get_compact_letter_display(p_matrix, unique_groups)
-                else:
-                    st.info("No significant differences found")
-        except Exception as e:
-            st.error(f"ANOVA failed: {str(e)}")
+    # --- Teste de Shapiro-Wilk (Normalidade por Grupo) ---
+    st.markdown("#### Teste de Shapiro-Wilk (Normalidade por Grupo)")
+    normal_met_all_groups = True
+    for g in groups:
+        group_data = data_clean[var_name][data_clean[group_col] == g].dropna()
+        if len(group_data) >= 3: # Shapiro-Wilk requer no mínimo 3 pontos
+            stat_shapiro, p_shapiro = stats.shapiro(group_data)
+            st.write(f"  - Grupo '{g}': Estatística de Shapiro: {stat_shapiro:.4f}, p-valor: {p_shapiro:.4f}")
+            if p_shapiro < 0.05:
+                normal_met_all_groups = False
+        else:
+            st.info(f"  - Grupo '{g}': Poucas observações ({len(group_data)}). Teste de Shapiro-Wilk não aplicável ou confiável.")
+
+    if normal_met_all_groups:
+        st.success("✅ A maioria dos grupos (com N>=3) apresenta normalidade. Pressuposto de normalidade satisfeito.")
     else:
-        st.info("Using **Kruskal-Wallis** (non-parametric)")
-        try:
-            valid_groups = []
-            group_data = []
-            
-            for group in unique_groups:
-                g_data = data_clean.loc[data_clean[group_var_name]==group, dependent_var_name]
-                if len(g_data) > 0:
-                    valid_groups.append(group)
-                    group_data.append(g_data)
-            
-            if len(valid_groups) < 2:
-                st.warning("Insufficient groups with data")
-                return
-                
-            H, p_kruskal = stats.kruskal(*group_data)
-            
-            with st.expander("Kruskal-Wallis Results"):
-                st.write(f"H-statistic: {H:.4f}, p-value: {p_kruskal:.4f}")
-                
-                if p_kruskal < 0.05:
-                    st.success("Significant difference detected (p < 0.05)")
-                    
-                    # Post-hoc test
-                    st.markdown("##### Dunn's Post-hoc Test with Bonferroni correction")
-                    dunn_result = sp.posthoc_dunn(
-                        data_clean, 
-                        val_col=dependent_var_name, 
-                        group_col=group_var_name, 
-                        p_adjust='bonferroni'
-                    )
-                    st.dataframe(dunn_result.style.format("{:.4f}"))
-                    
-                    cld_letters = get_compact_letter_display(dunn_result, valid_groups)
-                else:
-                    st.info("No significant differences found")
-        except Exception as e:
-            st.error(f"Kruskal-Wallis failed: {str(e)}")
+        st.error("❌ Pelo menos um grupo (com N>=3) não atende ao pressuposto de normalidade.")
 
-    # Enhanced Visualization
-    st.markdown("#### Visualization")
-    
-    if not cld_letters:
-        cld_letters = {g: "" for g in unique_groups}
-    
-    plot_df = data_clean.copy()
-    plot_df['jitter'] = np.random.uniform(-0.2, 0.2, size=len(plot_df))
-    
-    # Calculate positions for CLD letters
-    y_max = plot_df.groupby(group_var_name)[dependent_var_name].max()
-    y_span = plot_df[dependent_var_name].max() - plot_df[dependent_var_name].min()
-    letter_y = y_max + (0.05 * y_span)
-    
-    letter_df = pd.DataFrame({
-        group_var_name: list(cld_letters.keys()),
-        'letter': list(cld_letters.values()),
-        'y_pos': [letter_y[g] for g in cld_letters.keys()]
-    })
-    
-    # Create chart
-    base = alt.Chart(plot_df).encode(
-        x=alt.X(f'{group_var_name}:N', title=group_var_name.replace('_', ' ')),
-        color=alt.Color(f'{group_var_name}:N', legend=None)
+
+    # --- Decisão sobre o Teste Principal ---
+    if homogeneity_met and normal_met_all_groups:
+        st.markdown("#### Teste Principal: ANOVA Paramétrica")
+        test_type = "parametric"
+    else:
+        st.markdown("#### Teste Principal: Kruskal-Wallis (Não Paramétrico)")
+        test_type = "non_parametric"
+
+    # --- Execução do Teste Principal ---
+    if test_type == "parametric":
+        try:
+            model = ols(f'{var_name} ~ C({group_col})', data=data_clean).fit()
+            from statsmodels.stats.anova import anova_lm
+            anova_result = anova_lm(model, typ=2)
+            st.write(anova_result)
+            p_anova = anova_result['PR(>F)'][group_col]
+
+            if p_anova < 0.05:
+                st.success(f"**Resultado ANOVA:** p-valor = {p_anova:.4f} (significativo). Existem diferenças significativas entre os grupos.")
+                st.markdown("##### Teste Post-hoc (Tukey HSD)")
+                try:
+                    tukey_result = pairwise_tukeyhsd(endog=data_clean[var_name], groups=data_clean[group_col], alpha=0.05)
+                    st.write(tukey_result.summary())
+                except ValueError as e:
+                    st.warning(f"Não foi possível executar Tukey HSD: {e}. Pode ser devido a grupos com apenas uma observação após a limpeza de NaNs.")
+            else:
+                st.info(f"**Resultado ANOVA:** p-valor = {p_anova:.4f} (NÃO significativo). Não há diferenças significativas entre os grupos.")
+        except Exception as e:
+            st.error(f"Erro ao executar ANOVA: {e}. Verifique a estrutura dos dados e a quantidade de observações por grupo.")
+    else: # non_parametric
+        try:
+            group_data_for_kw = [data_clean[var_name][data_clean[group_col] == g].values for g in groups if len(data_clean[var_name][data_clean[group_col] == g].values) > 0]
+            
+            if len(group_data_for_kw) < 2:
+                st.warning("Não há grupos suficientes com dados para o Teste de Kruskal-Wallis.")
+            else:
+                stat_kw, p_kw = stats.kruskal(*group_data_for_kw)
+                st.write(f"Estatística de Kruskal-Wallis: {stat_kw:.4f}, p-valor: {p_kw:.4f}")
+
+                if p_kw < 0.05:
+                    st.success(f"**Resultado Kruskal-Wallis:** p-valor = {p_kw:.4f} (significativo). Existem diferenças significativas entre os grupos.")
+                    st.markdown("##### Teste Post-hoc (Teste de Dunn com correção de Bonferroni)")
+                    try:
+                        dunn_result = sp.posthoc_dunn(data_clean, val_col=var_name, group_col=group_col, p_adjust='bonferroni')
+                        st.write(dunn_result)
+                    except Exception as e:
+                        st.warning(f"Não foi possível executar o Teste de Dunn: {e}. Verifique se há dados suficientes em cada grupo para comparações.")
+                else:
+                    st.info(f"**Resultado Kruskal-Wallis:** p-valor = {p_kw:.4f} (NÃO significativo). Não há diferenças significativas entre os grupos.")
+        except Exception as e:
+            st.error(f"Erro ao executar Kruskal-Wallis/Dunn: {e}. Verifique a estrutura dos dados ou a quantidade de observações por grupo.")
+
+    # --- Visualização (Boxplot) ---
+    st.markdown("#### Visualização dos Dados (Boxplot)")
+
+    chart = alt.Chart(data_clean).mark_boxplot(size=50).encode(
+        x=alt.X(group_col + ':N', title="Grupo de Material"),
+        y=alt.Y(var_name + ':Q', title=f"{variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', '')}"),
+        tooltip=[group_col, alt.Tooltip(var_name, title=variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', ''))]
+    ).properties(
+        title=f"Distribuição de {variavel_selecionada.replace('_', ' ').replace('perc', '%').replace('final', '')} por Grupo de Material"
     )
-    
-    boxplot = base.mark_boxplot(size=30, extent='min-max').encode(
-        y=alt.Y(f'{dependent_var_name}:Q', 
-                title=dependent_var_name.replace('_', ' ').replace('perc', '%'))
-    )
-    
-    points = base.mark_circle(size=30, opacity=0.7).encode(
-        x=alt.X('jitter:Q', axis=None, scale=alt.Scale(domain=[-1, 1])),
-        y=f'{dependent_var_name}:Q'
-    )
-    
-    letters = alt.Chart(letter_df).mark_text(
-        dy=-15, 
-        fontSize=14,
-        fontWeight='bold'
-    ).encode(
-        x=f'{group_var_name}:N',
-        y=alt.Y('y_pos:Q', axis=None),
-        text='letter:N'
-    )
-    
-    chart = (boxplot + points + letters).properties(
-        width=600,
-        height=400
-    ).configure_view(
-        strokeWidth=0
-    ).configure_axis(
-        labelFontSize=12,
-        titleFontSize=14
-    )
-    
     st.altair_chart(chart, use_container_width=True)
 
-# --- Streamlit App with Enhanced Features ---
-st.title("Vermicompost Statistical Analysis")
-st.markdown("""
-    This tool performs statistical analysis comparing different material groups.
-    Upload your data or use sample data to get started.
-""")
+# --- 5. Executar a Análise ---
+if variavel_selecionada:
+    run_statistical_analysis(df, variavel_selecionada, 'Material_Group')
 
-# Data loading with upload option
-with st.sidebar:
-    st.header("Data Configuration")
-    uploaded_file = st.file_uploader("Upload CSV file", type=["csv"])
-    
-    if uploaded_file:
-        df = pd.read_csv(uploaded_file)
-        st.success(f"Uploaded data: {uploaded_file.name}")
-    else:
-        st.info("Using sample data")
-        df = pd.DataFrame({
-            'Material_Group': np.repeat(['Group A', 'Group B', 'Group C'], 30),
-            'N_perc': np.concatenate([
-                np.random.normal(3.0, 0.3, 30),  # Higher mean for Group A
-                np.random.normal(2.0, 0.4, 30),
-                np.random.normal(2.5, 0.3, 30)
-            ]),
-            'P_perc': np.random.normal(0.5, 0.1, 90),
-            'K_perc': np.random.normal(1.2, 0.2, 90),
-            'C_N_Ratio_final': np.concatenate([
-                np.random.normal(12, 2, 30),
-                np.random.normal(18, 3, 30),
-                np.random.normal(15, 2, 30)
-            ]),
-            'pH': np.random.normal(7.0, 0.5, 90)
-        })
-    
-    # Variable selection
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    group_cols = df.select_dtypes(exclude=np.number).columns.tolist()
-    
-    if not group_cols:
-        group_cols = df.columns.tolist()
-    
-    selected_var = st.selectbox("Select measurement variable", numeric_cols)
-    group_var = st.selectbox("Select group variable", group_cols)
-
-# Run analysis
-if st.sidebar.button("Run Analysis"):
-    run_statistical_analysis_and_plot(df, selected_var, group_var)
-else:
-    st.info("Select variables and click 'Run Analysis' in the sidebar")
-    st.dataframe(df.head().style.format("{:.2f}"))
+# --- 6. Rodapé ---
+st.markdown("---")
+st.caption("Desenvolvido para a metanálise de vermicompostos. Por favor, consulte o artigo científico para detalhes metodológicos completos.")
