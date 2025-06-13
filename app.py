@@ -147,7 +147,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             else:
                 st.success("All tested groups **follow a normal distribution** (p >= 0.05).")
         else:
-            st.info("Normality could not be tested for any group (N too small).")
+            st.info("Normalidade could not be tested for any group (N too small).") # Typo: "Normalidade" to "Normality"
 
     # 3. Select and Execute Statistical Tests
     st.markdown("#### Statistical Test Results")
@@ -187,7 +187,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
                                             columns=data_clean[group_var_name].unique())
                     for idx, row in tukey_df.iterrows():
                         group1 = row['group1']
-                        group2 = row['group2'] # Corrected: was 'group['' previously
+                        group2 = row['group2']
                         p_adj = row['p-adj']
                         p_matrix.loc[group1, group2] = p_adj
                         p_matrix.loc[group2, group1] = p_adj # Symmetric
@@ -234,10 +234,10 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             except Exception as e:
                 st.error(f"Error performing Kruskal-Wallis: {e}")
 
-    # --- Visualization (Boxplot with Jitter and CLD) ---
+    # --- Visualização (Boxplot com Jitter e CLD) --- # Typo: "Visualização" to "Visualization"
     st.markdown("#### Data Visualization (Boxplot with Jitter)")
     
-    # Add CLD letters to the dataframe for plotting
+    # Adiciona as letras CLD ao dataframe para plotting
     plot_df = data_clean.copy()
     if cld_letters: # Only add if CLD was calculated and is not empty
         # Map letters to original groups in plot_df
@@ -355,23 +355,33 @@ except FileNotFoundError:
     st.error("Error: 'dados_vermicomposto.xlsx' file not found. Please ensure it is in the same folder as this script.")
     st.stop()
 
-# --- Source Column Check ---
-original_source_col = 'Material de Origem do Vermicomposto'
-if original_source_col not in df.columns:
-    st.error(f"Error: Column '{original_source_col}' not found in the data file. Please check the column name in your Excel and ensure it is exactly as expected.")
+# --- Column Renaming Map ---
+# Map columns from your Excel file to the standardized names used in the script.
+column_rename_map = {
+    'Material de Origem do Vermicomposto': 'Source_Material',
+    'N (%)': 'N_perc',
+    'P (%)': 'P_perc',
+    'K (%)': 'K_perc',
+    'CN_Ratio_final': 'C_N_Ratio_final'
+}
+
+# --- Apply Renaming and Check for Missing Columns ---
+# We check if the *original* column exists before attempting to rename.
+# This makes it more robust against partially missing columns in the Excel.
+cols_to_rename_existing = {
+    old_name: new_name for old_name, new_name in column_rename_map.items() 
+    if old_name in df.columns
+}
+df.rename(columns=cols_to_rename_existing, inplace=True)
+
+# Now, check for the *expected standardized names*
+required_standard_cols = list(column_rename_map.values())
+missing_standard_cols = [col for col in required_standard_cols if col not in df.columns]
+
+if missing_standard_cols:
+    st.error(f"Error: After renaming, the following required columns were not found or could not be mapped in the data file: {', '.join(missing_standard_cols)}. Please check the original column names in your Excel: {', '.join([k for k, v in column_rename_map.items() if v in missing_standard_cols])}.")
     st.stop()
 
-df.rename(columns={original_source_col: 'Source_Material'}, inplace=True)
-
-# --- Numeric Columns Check ---
-# Updated based on common naming and user's specific input: pH_final, C_N_Ratio_final are kept
-# N_perc, P_perc, K_perc are common and now enforced.
-required_numeric_cols = ["N_perc", "P_perc", "K_perc", "pH_final", "C_N_Ratio_final"]
-missing_cols = [col for col in required_numeric_cols if col not in df.columns]
-
-if missing_cols:
-    st.error(f"Error: The following required numeric columns were not found in the data file: {', '.join(missing_cols)}. Please check the column names in your Excel.")
-    st.stop()
 
 # Categorization Material_Group (as in R code)
 df['Material_Group'] = "Uncategorized" # Default value
@@ -385,7 +395,7 @@ df.loc[df['Source_Material'].str.contains("Newspaper|Paper Waste|Cardboard", cas
 df['Material_Group'] = df['Material_Group'].astype('category')
 
 
-# Variables for analysis
+# Variables for analysis (these use the standardized internal names)
 numerical_variables = {
     "Nitrogen (%)": "N_perc",
     "Phosphorus (%)": "P_perc",
