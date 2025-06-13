@@ -408,9 +408,9 @@ df.loc[df['Source_Material'].str.contains(
     case=False, na=False
 ), 'Material_Group'] = "Coffee Waste" 
 
-# Vegetable Waste (now includes diverse plant waste, cotton, grass, etc.)
+# Vegetable Waste (updated to include Cotton, Grass, Water Hyacinth, Parthenium, and Bagasse)
 df.loc[df['Source_Material'].str.contains(
-    "Vegetable Waste|Grass Clippings|Water Hyacinth|Parthenium|Cotton Gin Trash", 
+    "Vegetable Waste|Grass Clippings|Water Hyacinth|Parthenium|Cotton Gin Trash|Food and Cotton Waste|Bagasse", # Added 'Food and Cotton Waste' and 'Bagasse'
     case=False, na=False
 ), 'Material_Group'] = "Vegetable Waste"
 
@@ -426,7 +426,7 @@ df.loc[df['Source_Material'].str.contains(
     case=False, na=False
 ), 'Material_Group'] = "Newspaper Waste"
 
-# Food Waste (specific kitchen/food waste, including Kitchen Paper Waste and Kitchen and Yard Waste)
+# Food Waste (specific kitchen/food waste, now excluding 'Food and Cotton Waste' as it moved to Vegetable Waste)
 df.loc[df['Source_Material'].str.contains(
     "Food Waste|Kitchen Waste|Kitchen Paper Waste|Kitchen and Yard Waste", 
     case=False, na=False
