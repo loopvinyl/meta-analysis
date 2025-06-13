@@ -147,7 +147,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             else:
                 st.success("All tested groups **follow a normal distribution** (p >= 0.05).")
         else:
-            st.info("Normalidade could not be tested for any group (N too small).") # Typo: "Normalidade" to "Normality"
+            st.info("Normality could not be tested for any group (N too small).")
 
     # 3. Select and Execute Statistical Tests
     st.markdown("#### Statistical Test Results")
@@ -234,11 +234,18 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             except Exception as e:
                 st.error(f"Error performing Kruskal-Wallis: {e}")
 
-    # --- Visualização (Boxplot com Jitter e CLD) --- # Typo: "Visualização" to "Visualization"
+    # --- Visualization (Boxplot with Jitter and CLD) --- 
     st.markdown("#### Data Visualization (Boxplot with Jitter)")
     
-    # Adiciona as letras CLD ao dataframe para plotting
+    # Add CLD letters to the dataframe for plotting
     plot_df = data_clean.copy()
+    
+    # --- Jitter Correction ---
+    # Add a jitter column for plotting with a random offset
+    # This generates a small random number for each data point, making points spread out horizontally.
+    plot_df['jitter_offset'] = np.random.uniform(-0.2, 0.2, len(plot_df))
+    # --- End Jitter Correction ---
+
     if cld_letters: # Only add if CLD was calculated and is not empty
         # Map letters to original groups in plot_df
         plot_df['cld_letter'] = plot_df[group_var_name].map(cld_letters)
@@ -278,7 +285,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     jitter = base_chart.mark_circle(size=80, opacity=0.7).encode(
         y=alt.Y(f"{dependent_var_name}:Q"),
         color=alt.Color(f"{group_var_name}:N", legend=None),
-        xOffset=alt.Offset("jitter", band=0.5), # Add jitter
+        xOffset=alt.X('jitter_offset', axis=None), # Use the calculated jitter column for xOffset
         tooltip=[group_var_name, dependent_var_name]
     )
 
@@ -357,6 +364,7 @@ except FileNotFoundError:
 
 # --- Column Renaming Map ---
 # Map columns from your Excel file to the standardized names used in the script.
+# This allows the app to work without you changing the Excel column names.
 column_rename_map = {
     'Material de Origem do Vermicomposto': 'Source_Material',
     'N (%)': 'N_perc',
