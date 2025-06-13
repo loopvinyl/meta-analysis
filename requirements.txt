@@ -1,0 +1,8 @@
+pandas
+streamlit
+altair
+scipy
+statsmodels
+scikit-posthocs
+numpy
+openpyxl
