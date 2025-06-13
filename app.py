@@ -1,14 +1,14 @@
 import pandas as pd
 import streamlit as st
-import matplotlib.pyplot as plt # Importar Matplotlib
-import seaborn as sns # Importar Seaborn
+import matplotlib.pyplot as plt
+import seaborn as sns
 from scipy import stats
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 import scikit_posthocs as sp
 import numpy as np
-import string # Para geração de letras no CLD
+import string
 
 # --- Helper Function for Compact Letter Display (CLD) ---
 # This function assigns letters to groups based on their significance differences.
@@ -116,8 +116,8 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             groups_for_levene = [g for g in groups_for_levene if len(g) > 0] 
             
             if len(groups_for_levene) < 2:
-                 st.info("Not enough groups with data for Levene's Test.")
-                 homogeneous_variances = False
+                st.info("Not enough groups with data for Levene's Test.")
+                homogeneous_variances = False
             else:
                 stat, p_levene = stats.levene(*groups_for_levene)
                 st.write(f"Levene's Statistic: {stat:.3f}, p-value: {p_levene:.3f}")
@@ -236,7 +236,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
                         st.markdown("##### Post-hoc Test: Dunn with Bonferroni correction")
                         # Dunn's Post-hoc Test (scikit-posthocs returns a DataFrame directly)
                         dunn_result = sp.posthoc_dunn(data_clean, val_col=dependent_var_name,
-                                                    group_col=group_var_name, p_adjust='bonferroni')
+                                                      group_col=group_var_name, p_adjust='bonferroni')
                         st.dataframe(dunn_result)
 
                         # Prepare p-values for CLD (Dunn's results are already a matrix)
@@ -371,7 +371,7 @@ column_rename_map = {
     'N (%)': 'N_perc',
     'P (%)': 'P_perc',
     'K (%)': 'K_perc',
-    'pH final': 'pH_final', # Adjusted from 'pH_final' as previously discussed (check your Excel file for exact name)
+    'pH final': 'pH_final',
     'CN_Ratio_final': 'C_N_Ratio_final'
 }
 
@@ -405,6 +405,23 @@ df.loc[df['Source_Material'].str.contains("Newspaper|Paper Waste|Cardboard", cas
 
 df['Material_Group'] = df['Material_Group'].astype('category')
 
+# --- NOVO BLOCO: Visualize Tipos de Materiais por Grupo ---
+st.markdown("---")
+st.subheader("🔍 Explore Materiais de Origem em Cada Grupo")
+with st.expander("Clique para ver quais 'Materiais de Origem' pertencem a cada 'Grupo de Material'"):
+    # Crie uma lista única dos grupos e seus materiais de origem correspondentes
+    # Usamos df.dropna() para garantir que apenas dados válidos sejam considerados
+    grouped_materials = df.groupby('Material_Group')['Source_Material'].unique()
+    
+    # Exiba cada grupo e seus materiais
+    for group, materials in grouped_materials.items():
+        st.write(f"**{group}**:")
+        if len(materials) > 0:
+            st.write(", ".join(materials))
+        else:
+            st.write("Nenhum material encontrado para este grupo.")
+st.markdown("---")
+# --- FIM DO NOVO BLOCO ---
 
 # Variables for analysis (these use the standardized internal names)
 numerical_variables = {
