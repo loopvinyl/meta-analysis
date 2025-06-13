@@ -393,35 +393,50 @@ if missing_standard_cols:
     st.stop()
 
 
-# Categorization Material_Group (as in R code)
+# Categorization Material_Group based on our discussion
 df['Material_Group'] = "Uncategorized" # Default value
 
-# Categorize based on keywords. Case-insensitive.
-# More robust categorization based on provided data
+# Pineapple Waste
 df.loc[df['Source_Material'].str.contains(
-    "Pineapple|Abacaxi|Banana Leaf|Food Waste|Kitchen Waste|Vegetable Waste", 
+    "Pineapple|Abacaxi", 
     case=False, na=False
-), 'Material_Group'] = "Fruit & Vegetable Waste"
+), 'Material_Group'] = "Pineapple Waste"
 
+# Coffee Waste
 df.loc[df['Source_Material'].str.contains(
     "Coffee|SCG|Borra de Café|Coffee Processing Waste", 
     case=False, na=False
 ), 'Material_Group'] = "Coffee Waste" 
 
+# Vegetable Waste (now includes diverse plant waste, cotton, grass, etc.)
 df.loc[df['Source_Material'].str.contains(
-    "Manure|Dung|Cattle Manure|Cow Manure|Pig Manure|Horse Manure|Matka khad|Bovine Manure|B0|B25|B50|B75|CD|PM", 
+    "Vegetable Waste|Grass Clippings|Water Hyacinth|Parthenium|Cotton Gin Trash", 
+    case=False, na=False
+), 'Material_Group'] = "Vegetable Waste"
+
+# Manure & Related
+df.loc[df['Source_Material'].str.contains(
+    "Manure|Dung|Cattle Manure|Cow Manure|Pig Manure|Horse Manure|Matka khad|Bovine Manure|Pure Vermicompost|B0|B25|B50|B75|CD|PM", 
     case=False, na=False
 ), 'Material_Group'] = "Manure & Related"
 
+# Newspaper Waste
 df.loc[df['Source_Material'].str.contains(
-    "Grass Clippings|Water Hyacinth|Parthenium|Pure Vermicompost|Kitchen-Yard Waste|Garden Waste|Straw|Bagasse \\(100:0\\)|Bagasse Puro", 
+    "Newspaper|Paper Waste|Cardboard", 
     case=False, na=False
-), 'Material_Group'] = "Diverse Plant Waste"
+), 'Material_Group'] = "Newspaper Waste"
 
+# Food Waste (specific kitchen/food waste, including Kitchen Paper Waste and Kitchen and Yard Waste)
 df.loc[df['Source_Material'].str.contains(
-    "Newspaper|Paper Waste|Cardboard|Kitchen Paper Waste", 
+    "Food Waste|Kitchen Waste|Kitchen Paper Waste|Kitchen and Yard Waste", 
     case=False, na=False
-), 'Material_Group'] = "Paper & Cellulose Waste"
+), 'Material_Group'] = "Food Waste"
+
+# Banana
+df.loc[df['Source_Material'].str.contains(
+    "Banana Leaf", 
+    case=False, na=False
+), 'Material_Group'] = "Banana"
 
 df['Material_Group'] = df['Material_Group'].astype('category')
 
