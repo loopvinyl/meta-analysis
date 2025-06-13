@@ -246,28 +246,35 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     plot_df['jitter_offset'] = np.random.uniform(-0.2, 0.2, len(plot_df))
     # --- End Jitter Correction ---
 
-    if cld_letters: # Only add if CLD was calculated and is not empty
+    # Calculate overall min/max for Y-axis to ensure consistent scaling across layers
+    # Get all y-values from boxplot/jitter data
+    all_y_values = plot_df[dependent_var_name].dropna().tolist()
+    
+    # If CLD letters are generated, add their Y positions to the values for scale calculation
+    plot_df_max_y = pd.DataFrame() # Initialize as empty
+    if cld_letters: # Only proceed if CLD was calculated and is not empty
         # Map letters to original groups in plot_df
         plot_df['cld_letter'] = plot_df[group_var_name].map(cld_letters)
-        # Calculate y-position for letters (a bit above the max value of each group)
-        # Ensure we only use groups that actually have letters assigned
-        groups_with_letters = [g for g, l in cld_letters.items() if l]
         
+        # Calculate y-position for letters (a bit above the max value of each group)
+        groups_with_letters = [g for g, l in cld_letters.items() if l]
         if groups_with_letters:
             plot_df_max_y = plot_df[plot_df[group_var_name].isin(groups_with_letters)].groupby(group_var_name)[dependent_var_name].max().reset_index()
-            # Calculate position based on the data's max value, adjusting for buffer
             max_val_overall = plot_df[dependent_var_name].max()
             buffer = max_val_overall * 0.05 # 5% buffer
             plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer
+            plot_df_max_y = plot_df_max_y.merge(pd.DataFrame(cld_letters.items(), columns=[group_var_name, 'cld_letter']), on=group_var_name)
             
-            # Merge CLD letters for plotting
-            cld_df_for_plot = pd.DataFrame(cld_letters.items(), columns=[group_var_name, 'cld_letter'])
-            plot_df_max_y = plot_df_max_y.merge(cld_df_for_plot, on=group_var_name)
-            
-        else:
-            plot_df_max_y = pd.DataFrame() # No letters to plot
-    else:
-        plot_df_max_y = pd.DataFrame() # No letters to plot
+            # Add y-values from CLD labels to the overall y_values for scale
+            all_y_values.extend(plot_df_max_y['y_pos'].dropna().tolist())
+
+    min_y = min(all_y_values) if all_y_values else 0
+    max_y = max(all_y_values) if all_y_values else 1 # Default if no data
+    
+    # Add some padding to the max_y for CLD letters to avoid clipping
+    max_y_with_padding = max_y * 1.15 # Add 15% padding above max value for letters
+    
+    y_scale = alt.Scale(domain=[min_y, max_y_with_padding])
     
     base_chart = alt.Chart(plot_df).encode(
         x=alt.X(f"{group_var_name}:N", title="Material Group", axis=alt.Axis(labelAngle=-45))
@@ -277,15 +284,15 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
 
     # Boxplot layer
     boxplot = base_chart.mark_boxplot(size=60).encode(
-        y=alt.Y(f"{dependent_var_name}:Q", title=dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')),
+        y=alt.Y(f"{dependent_var_name}:Q", title=dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', ''), scale=y_scale),
         color=alt.Color(f"{group_var_name}:N", legend=None) # Color by group, no legend needed
     )
 
     # Jitter points layer
     jitter = base_chart.mark_circle(size=80, opacity=0.7).encode(
-        y=alt.Y(f"{dependent_var_name}:Q"),
+        y=alt.Y(f"{dependent_var_name}:Q", scale=y_scale), # Apply consistent scale
         color=alt.Color(f"{group_var_name}:N", legend=None),
-        xOffset=alt.X('jitter_offset', axis=None), # Use the calculated jitter column for xOffset
+        xOffset=alt.X('jitter_offset', axis=None),
         tooltip=[group_var_name, dependent_var_name]
     )
 
@@ -297,7 +304,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             dy=-10 # Adjust vertical position
         ).encode(
             x=alt.X(f"{group_var_name}:N"),
-            y=alt.Y("y_pos:Q"),
+            y=alt.Y("y_pos:Q", scale=y_scale), # Apply consistent scale
             text=alt.Text("cld_letter:N"),
             color=alt.value("black")
         )
@@ -344,7 +351,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
 
 # --- 2. Streamlit Page Configuration ---
 st.set_page_config(
-    page_title="Vermicompost Meta-analysis", # This could be made more dynamic if needed
+    page_title="Vermicompost Meta-analysis",
     layout="wide",
     initial_sidebar_state="expanded"
 )
