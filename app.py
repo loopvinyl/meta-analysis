@@ -67,47 +67,27 @@ def get_compact_letter_display(p_values_matrix, group_names):
     final_letters = {group: "".join(sorted(list(set(letters)))) for group, letters in group_letters.items()}
     return final_letters
 
-
 # --- Material Group Categorization Function ---
 def assign_material_group(source):
     if pd.isna(source):
         return "Uncategorized"
-    
     source = str(source).lower()
     
-    # Animal Manure-Based
-    manure_keywords = ["manure", "dung", "cattle", "cow", "pig", "horse", "bovine", 
-                      "cd", "b0", "b25", "b50", "vr", "cow dung"]
-    if any(kw in source for kw in manure_keywords):
-        return "Animal Manure-Based"
-    
-    # Agro-Industrial Waste (Coffee)
+    # Ordens de checagem atualizadas
     if "coffee" in source or "scg" in source or "borra" in source:
         return "Agro-Industrial Waste (Coffee)"
-    
-    # Agro-Industrial Waste (Fruit)
-    fruit_keywords = ["pineapple", "abacaxi", "vpc", "banana", "bl"]
-    if any(kw in source for kw in fruit_keywords):
+    if "pineapple" in source or "abacaxi" in source or "banana" in source or "bl" in source:
         return "Agro-Industrial Waste (Fruit)"
-    
-    # Agro-Industrial Waste (Crop Residues)
     if "bagasse" in source or "crop residue" in source or "straw" in source:
         return "Agro-Industrial Waste (Crop Residues)"
-    
-    # Food Waste
+    if "manure" in source or "dung" in source or "cattle" in source or "cow" in source or "cd" in source or "bovine" in source:
+        return "Animal Manure-Based"
     if "food" in source or "kitchen" in source:
         return "Food Waste"
-    
-    # Green Waste
-    green_keywords = ["vegetable", "grass", "water hyacinth", "parthenium", "weeds", "whvc"]
-    if any(kw in source for kw in green_keywords):
+    if "vegetable" in source or "grass" in source or "water hyacinth" in source or "weeds" in source:
         return "Green Waste"
-    
-    # Cellulosic Waste
-    cellulosic_keywords = ["newspaper", "paper", "cardboard", "cotton"]
-    if any(kw in source for kw in cellulosic_keywords):
+    if "cardboard" in source or "paper" in source or "newspaper" in source:
         return "Cellulosic Waste"
-    
     return "Uncategorized"
 
 # --- Get category description ---
@@ -328,9 +308,9 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             buffer_val = data_range * 0.12
             plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer_val
             
-            # Adjust for variables with very high values (like C/N Ratio)
-            if plot_df_max_y['y_pos'].max() > 2 * max_y_overall:
-                plot_df_max_y['y_pos'] = max_y_overall + (data_range * 0.15)
+            # Special adjustment for C/N Ratio
+            if "C_N_Ratio" in dependent_var_name:
+                plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] * 1.15
                 
             plot_df_max_y = plot_df_max_y.dropna(subset=['y_pos', 'cld_letter']).copy()
 
@@ -384,10 +364,6 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
                     y_pos = group_data['y_pos'].values[0]
                     letter = group_data['cld_letter'].values[0]
                     
-                    # Ensure letter is within plot boundaries
-                    if y_pos > max_y_overall * 1.5:
-                        y_pos = max_y_overall * 1.1
-                        
                     ax.text(
                         x=idx,
                         y=y_pos,
@@ -442,13 +418,6 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         
     except Exception as e:
         st.error(f"Error generating visualization: {str(e)}")
-        # Debug information
-        st.write(f"Debug Info for {dependent_var_name}:")
-        st.write(f"Min value: {min_y_overall}, Max value: {max_y_overall}")
-        st.write(f"Data range: {data_range}")
-        if 'plot_df_max_y' in locals():
-            st.write("CLD positions:", plot_df_max_y)
-        st.write("Data Sample:", plot_df[[group_var_name, dependent_var_name]].head())
 
     # --- Interpretation of Results ---
     with st.expander(f"✨ Detailed Interpretation"):
@@ -474,7 +443,6 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         else:
             st.markdown("No significant differences detected between groups")
 
-
 # --- Streamlit App Configuration ---
 st.set_page_config(
     page_title="Vermicompost Meta-analysis",
@@ -488,9 +456,9 @@ st.markdown("---")
 
 # --- Data Loading ---
 try:
-    df = pd.read_excel('excelv2.xlsx')
+    df = pd.read_excel('dados_vermicomposto_v3.xlsx', sheet_name='Planilha1')
 except FileNotFoundError:
-    st.error("Error: 'excelv2.xlsx' file not found. Please ensure it's in the same folder.")
+    st.error("Error: 'dados_vermicomposto_v3.xlsx' file not found. Please ensure it's in the same folder.")
     st.stop()
 
 # --- Column Renaming ---
@@ -511,7 +479,7 @@ df['Material_Group'] = df['Source_Material'].apply(assign_material_group)
 
 # --- Filter out non-vermicompost entries ---
 if 'Additional Observations' in df.columns:
-    df = df[~df['Additional Observations'].str.contains('not vermicompost|drum compost', case=False, na=False)]
+    df = df[~df['Additional Observations'].str.contains('drum compost|not vermicompost', case=False, na=False)]
 
 # --- Display Waste Types by Group ---
 st.markdown("---")
