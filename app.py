@@ -325,8 +325,8 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             plot_df_max_y = max_vals_per_group.merge(cld_df, on=group_var_name)
             
             # Calculate y position with buffer based on data range
-            buffer = data_range * 0.12
-            plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer
+            buffer_val = data_range * 0.12
+            plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer_val
             
             # Adjust for variables with very high values (like C/N Ratio)
             if plot_df_max_y['y_pos'].max() > 2 * max_y_overall:
@@ -428,7 +428,7 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         y_upper_limit = max_y_overall * 1.25
         
         # Adjust for CLD letters
-        if not plot_df_max_y.empty():
+        if not plot_df_max_y.empty:
             max_cld_y = plot_df_max_y['y_pos'].max()
             if max_cld_y > y_upper_limit:
                 y_upper_limit = max_cld_y * 1.1
