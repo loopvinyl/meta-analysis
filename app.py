@@ -72,12 +72,17 @@ def get_compact_letter_display(p_values_matrix, group_names):
 def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     st.markdown(f"#### Analysis for: **{dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
 
-    # Clean data (remove NA for this specific analysis)
+    # Convert to numeric and clean
+    data[dependent_var_name] = pd.to_numeric(data[dependent_var_name], errors='coerce')
     data_clean = data.dropna(subset=[dependent_var_name, group_var_name]).copy()
-
+    
+    if data_clean.empty:
+        st.warning("No valid data available for analysis after cleaning.")
+        return
+        
     # Check if there's enough data for analysis
     if data_clean[group_var_name].nunique() < 2:
-        st.warning(f"Not enough groups ({data_clean[group_var_name].nunique()}) for statistical analysis of {dependent_var_name}.")
+        st.warning(f"Not enough groups ({data_clean[group_var_name].nunique()}) for statistical analysis.")
         return
 
     # 1. Homogeneity of Variance Test (Levene's Test)
@@ -214,47 +219,149 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     # --- Visualization (Boxplot with Jitter and CLD) ---
     st.markdown("#### Data Visualization (Boxplot with Jitter)")
     plot_df = data_clean.copy()
-    min_y_overall = plot_df[dependent_var_name].min()
-    max_y_overall = plot_df[dependent_var_name].max()
     
-    plot_df_max_y = pd.DataFrame()
-    if cld_letters:
-        max_vals_per_group = plot_df.groupby(group_var_name)[dependent_var_name].max().reset_index()
-        plot_df_max_y = max_vals_per_group.merge(
-            pd.DataFrame(cld_letters.items(), columns=[group_var_name, 'cld_letter']), 
-            on=group_var_name
+    if plot_df.empty:
+        st.warning("No data available for visualization.")
+        return
+        
+    try:
+        # Define color palette and order
+        group_palette = {
+            "Animal Manure-Based": "#1f77b4",
+            "Agro-Industrial Waste (Coffee)": "#ff7f0e",
+            "Agro-Industrial Waste (Fruit)": "#9467bd",
+            "Agro-Industrial Waste (Crop Residues)": "#8c564b",
+            "Food Waste": "#2ca02c",
+            "Green Waste": "#d62728",
+            "Cellulosic Waste": "#e377c2",
+            "Uncategorized": "#7f7f7f"
+        }
+        
+        group_order = [
+            "Animal Manure-Based",
+            "Agro-Industrial Waste (Coffee)",
+            "Agro-Industrial Waste (Fruit)",
+            "Agro-Industrial Waste (Crop Residues)",
+            "Food Waste",
+            "Green Waste",
+            "Cellulosic Waste"
+        ]
+        
+        # Filter only groups present in data
+        present_groups = [g for g in group_order if g in plot_df[group_var_name].unique()]
+        
+        min_y_overall = plot_df[dependent_var_name].min()
+        max_y_overall = plot_df[dependent_var_name].max()
+        
+        plot_df_max_y = pd.DataFrame()
+        if cld_letters:
+            max_vals_per_group = plot_df.groupby(group_var_name)[dependent_var_name].max().reset_index()
+            plot_df_max_y = max_vals_per_group.merge(
+                pd.DataFrame(cld_letters.items(), columns=[group_var_name, 'cld_letter']), 
+                on=group_var_name
+            )
+            buffer = (max_y_overall - min_y_overall) * 0.12
+            plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer
+            plot_df_max_y = plot_df_max_y.dropna(subset=['y_pos', 'cld_letter']).copy()
+
+        fig, ax = plt.subplots(figsize=(14, 8))
+        
+        # Boxplot
+        sns.boxplot(
+            data=plot_df, 
+            x=group_var_name, 
+            y=dependent_var_name, 
+            ax=ax,
+            order=present_groups,
+            palette=group_palette,
+            width=0.7,
+            showfliers=False
         )
-        buffer = (max_y_overall - min_y_overall) * 0.08
-        plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer
-        plot_df_max_y = plot_df_max_y.dropna(subset=['y_pos', 'cld_letter']).copy()
+        
+        # Jitter plot
+        sns.stripplot(
+            data=plot_df, 
+            x=group_var_name, 
+            y=dependent_var_name,
+            ax=ax,
+            order=present_groups,
+            palette=group_palette,
+            size=7,
+            jitter=0.25,
+            linewidth=1,
+            edgecolor='gray',
+            alpha=0.8
+        )
 
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.boxplot(data=plot_df, x=group_var_name, y=dependent_var_name, ax=ax)
-    sns.stripplot(data=plot_df, x=group_var_name, y=dependent_var_name,
-                  color='black', size=5, jitter=0.2, ax=ax, linewidth=0.5)
+        # Add sample size annotations
+        for idx, group in enumerate(present_groups):
+            n = sum(plot_df[group_var_name] == group)
+            ax.text(
+                idx, min_y_overall * 0.95, 
+                f"n={n}", 
+                ha='center', 
+                va='top',
+                fontsize=10,
+                color='gray'
+            )
+        
+        # Add CLD letters
+        if not plot_df_max_y.empty:
+            for idx, group in enumerate(present_groups):
+                if group in plot_df_max_y[group_var_name].values:
+                    group_data = plot_df_max_y[plot_df_max_y[group_var_name] == group]
+                    y_pos = group_data['y_pos'].values[0]
+                    letter = group_data['cld_letter'].values[0]
+                    ax.text(
+                        x=idx,
+                        y=y_pos,
+                        s=letter,
+                        ha='center',
+                        va='bottom',
+                        fontsize=14,
+                        color='black',
+                        weight='bold',
+                        bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.3')
+                    )
 
-    if not plot_df_max_y.empty:
-        for _, row in plot_df_max_y.iterrows():
-            ax.text(x=row[group_var_name], y=row['y_pos'], s=row['cld_letter'],
-                    ha='center', va='bottom', fontsize=12, color='red', weight='bold')
-
-    ax.set_title(f"Distribution of {dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')} by Material Group", fontsize=16)
-    ax.set_xlabel("Material Group", fontsize=12)
-    ax.set_ylabel(dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', ''), fontsize=12)
-    plt.xticks(rotation=45, ha='right')
-    
-    max_y_for_limit = plot_df_max_y['y_pos'].max() if not plot_df_max_y.empty else max_y_overall
-    plt.ylim(min_y_overall, max_y_for_limit * 1.05) 
-
-    plt.tight_layout()
-    st.pyplot(fig)
+        # Formatting
+        ax.set_title(
+            f"Distribution of {dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')} by Waste Type",
+            fontsize=18,
+            pad=20
+        )
+        ax.set_xlabel("Waste Type Category", fontsize=14, labelpad=15)
+        ax.set_ylabel(
+            dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', ''),
+            fontsize=14,
+            labelpad=15
+        )
+        
+        # Rotate x-axis labels
+        plt.xticks(rotation=25, ha='right', fontsize=12)
+        plt.yticks(fontsize=12)
+        
+        # Add grid for readability
+        plt.grid(axis='y', alpha=0.3)
+        
+        # Adjust y-axis limits
+        y_upper_limit = plot_df_max_y['y_pos'].max() * 1.2 if not plot_df_max_y.empty else max_y_overall * 1.2
+        plt.ylim(min_y_overall * 0.9, y_upper_limit)
+        
+        # Improve layout
+        plt.tight_layout()
+        st.pyplot(fig)
+        plt.close(fig)
+        
+    except Exception as e:
+        st.error(f"Error generating visualization: {str(e)}")
 
     # --- Interpretation of Results ---
     with st.expander(f"✨ Detailed Interpretation"):
-        st.markdown("The interpretation considers tests for homogeneity of variance, normality, and main test results.")
+        st.markdown("The interpretation considers tests for homogeneity of variance and normality, and then the results of ANOVA or Kruskal-Wallis and their respective post-hoc tests.")
         
         st.markdown("##### Homogeneity of Variances (Levene's Test):")
-        st.markdown(f"- {'Variances ARE homogeneous' if homogeneous_variances else 'Variances are NOT homogeneous'}")
+        st.markdown(f"- {'Variances ARE homogeneous (p >= 0.05)' if homogeneous_variances else 'Variances are NOT homogeneous (p < 0.05)'}")
         
         st.markdown("##### Normality (Shapiro-Wilk per Group):")
         st.markdown(f"- {'All groups follow normal distribution' if normality_by_group else 'At least one group does not follow normal distribution'}")
@@ -269,8 +376,52 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             st.markdown("##### Significance Letters (CLD):")
             st.markdown("- Groups sharing the same letter are not statistically different")
             st.markdown("- Groups with different letters are statistically different")
+            st.markdown("**Note**: The compact letter display (CLD) summarizes the post-hoc test results. Groups not sharing any letter are significantly different.")
         else:
             st.markdown("No significant differences detected between groups")
+
+# --- Material Group Categorization Function ---
+def assign_material_group(source):
+    if pd.isna(source):
+        return "Uncategorized"
+    
+    source = str(source).lower()
+    
+    # Animal Manure-Based
+    manure_keywords = ["manure", "dung", "cattle", "cow", "pig", "horse", "bovine", 
+                      "cd", "b0", "b25", "b50", "vr", "cow dung"]
+    if any(kw in source for kw in manure_keywords):
+        return "Animal Manure-Based"
+    
+    # Agro-Industrial Waste (Coffee)
+    if "coffee" in source or "scg" in source or "borra" in source:
+        return "Agro-Industrial Waste (Coffee)"
+    
+    # Agro-Industrial Waste (Fruit)
+    fruit_keywords = ["pineapple", "abacaxi", "vpc", "banana", "bl"]
+    if any(kw in source for kw in fruit_keywords):
+        return "Agro-Industrial Waste (Fruit)"
+    
+    # Agro-Industrial Waste (Crop Residues)
+    if "bagasse" in source or "crop residue" in source or "straw" in source:
+        return "Agro-Industrial Waste (Crop Residues)"
+    
+    # Food Waste
+    if "food" in source or "kitchen" in source:
+        return "Food Waste"
+    
+    # Green Waste
+    green_keywords = ["vegetable", "grass", "water hyacinth", "parthenium", "weeds", "whvc"]
+    if any(kw in source for kw in green_keywords):
+        return "Green Waste"
+    
+    # Cellulosic Waste
+    cellulosic_keywords = ["newspaper", "paper", "cardboard", "cotton"]
+    if any(kw in source for kw in cellulosic_keywords):
+        return "Cellulosic Waste"
+    
+    return "Uncategorized"
+
 
 # --- Streamlit App Configuration ---
 st.set_page_config(
@@ -283,14 +434,14 @@ st.title("🔬 Meta-analysis of Vermicompost: Waste Type Impacts on Nutrients")
 st.markdown("Explore statistical results for Nitrogen, Phosphorus, Potassium, pH, and C/N Ratio in vermicomposts")
 st.markdown("---")
 
-# --- 1. Data Loading with New File Name ---
+# --- Data Loading ---
 try:
-    df = pd.read_excel('excelv2.xlsx')  # Updated file name
+    df = pd.read_excel('excelv2.xlsx')
 except FileNotFoundError:
     st.error("Error: 'excelv2.xlsx' file not found. Please ensure it's in the same folder.")
     st.stop()
 
-# --- Updated Column Renaming for New Table Structure ---
+# --- Column Renaming ---
 column_rename_map = {
     'N (%)': 'N_perc',
     'P (%)': 'P_perc',
@@ -299,57 +450,46 @@ column_rename_map = {
     'CN_Ratio_final': 'C_N_Ratio_final'
 }
 
-# Apply renaming only to existing columns
-cols_to_rename = {}
 for old_name, new_name in column_rename_map.items():
     if old_name in df.columns:
-        cols_to_rename[old_name] = new_name
-df.rename(columns=cols_to_rename, inplace=True)
+        df.rename(columns={old_name: new_name}, inplace=True)
 
-# Check for required columns
-required_cols = list(column_rename_map.values()) + ['Source_Material']
-missing_cols = [col for col in required_cols if col not in df.columns]
+# --- Apply Material Group Categorization ---
+df['Material_Group'] = df['Source_Material'].apply(assign_material_group)
 
-if missing_cols:
-    st.error(f"Missing columns: {', '.join(missing_cols)}. Please check your Excel file structure.")
-    st.stop()
-
-# --- Enhanced Material Group Categorization ---
-df['Material_Group'] = "Uncategorized"
-
-# Define categorization rules with improved keywords
-category_rules = {
-    "Pineapple Waste": "Pineapple|Abacaxi|Pineapple peels",
-    "Coffee Waste": "Coffee|SCG|Borra de Café|Spent Coffee Grounds",
-    "Vegetable Waste": "Vegetable|Grass|Water Hyacinth|Parthenium|Cotton|Bagasse|Crop residue|Weeds",
-    "Manure & Related": "Manure|Dung|Cattle|Cow|Pig|Horse|Bovine|Matka khad|Pure Vermicompost|CD|PM|B0|B25|B50|B75|VR",
-    "Newspaper Waste": "Newspaper|Paper|Cardboard",
-    "Food Waste": "Food|Kitchen",
-    "Banana": "Banana Leaf"
-}
-
-for category, keywords in category_rules.items():
-    df.loc[df['Source_Material'].str.contains(keywords, case=False, na=False), 'Material_Group'] = category
-
-# Filter out non-vermicompost entries
+# --- Filter out non-vermicompost entries ---
 if 'Additional Observations' in df.columns:
-    df = df[~df['Additional Observations'].str.contains('Not vermicompost|Drum compost', case=False, na=False)]
+    df = df[~df['Additional Observations'].str.contains('not vermicompost|drum compost', case=False, na=False)]
 
-# --- Enhanced Material Exploration ---
+# --- Display Waste Types by Group ---
 st.markdown("---")
-st.subheader("🔍 Source Materials by Group and Article")
-with st.expander("View detailed material categorization"):
+st.subheader("🔍 Waste Types by Category")
+with st.expander("View detailed waste type categorization"):
     if 'Article (Authors, Year)' in df.columns:
         grouped = df.groupby('Material_Group')
         for name, group in grouped:
             unique_combos = group[['Source_Material', 'Article (Authors, Year)']].drop_duplicates()
             if not unique_combos.empty:
-                st.write(f"**{name}**")
+                st.markdown(f"**{name}**")
+                st.markdown(f"*{get_category_description(name)}*")
                 for _, row in unique_combos.iterrows():
-                    st.write(f"- {row['Source_Material']} ({row['Article (Authors, Year)'})")
+                    st.markdown(f"- `{row['Source_Material']}` (Source: {row['Article (Authors, Year)']})")
     else:
         st.warning("Article information not available in dataset")
 st.markdown("---")
+
+# --- Get category description ---
+def get_category_description(category):
+    descriptions = {
+        "Animal Manure-Based": "Primary component is animal manure (>50%)",
+        "Agro-Industrial Waste (Coffee)": "Coffee processing residues",
+        "Agro-Industrial Waste (Fruit)": "Fruit processing wastes (pineapple, banana, etc.)",
+        "Agro-Industrial Waste (Crop Residues)": "Agricultural crop residues (bagasse, straw, etc.)",
+        "Food Waste": "Kitchen and food processing wastes",
+        "Green Waste": "Fresh plant materials (vegetables, grass, weeds, etc.)",
+        "Cellulosic Waste": "Paper, cardboard, cotton and other cellulose-rich materials"
+    }
+    return descriptions.get(category, "No description available")
 
 # --- Analysis Variables ---
 numerical_variables = {
@@ -363,7 +503,7 @@ numerical_variables = {
 # --- Sidebar Controls ---
 st.sidebar.header("Analysis Parameters")
 selected_variable = st.sidebar.selectbox(
-    "Select variable to analyze:",
+    "Select nutrient to analyze:",
     list(numerical_variables.keys())
 )
 
