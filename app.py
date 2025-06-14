@@ -308,15 +308,30 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         min_y_overall = plot_df[dependent_var_name].min()
         max_y_overall = plot_df[dependent_var_name].max()
         
+        # Calculate data range for positioning
+        data_range = max_y_overall - min_y_overall
+        if data_range == 0:  # Avoid division by zero
+            data_range = max_y_overall if max_y_overall != 0 else 1
+        
         plot_df_max_y = pd.DataFrame()
         if cld_letters:
+            # Get max value per group
             max_vals_per_group = plot_df.groupby(group_var_name)[dependent_var_name].max().reset_index()
-            plot_df_max_y = max_vals_per_group.merge(
-                pd.DataFrame(cld_letters.items(), columns=[group_var_name, 'cld_letter']), 
-                on=group_var_name
-            )
-            buffer = (max_y_overall - min_y_overall) * 0.12
+            
+            # Create DF with CLD letters
+            cld_df = pd.DataFrame(list(cld_letters.items()), columns=[group_var_name, 'cld_letter'])
+            
+            # Merge with max values
+            plot_df_max_y = max_vals_per_group.merge(cld_df, on=group_var_name)
+            
+            # Calculate y position with buffer based on data range
+            buffer = data_range * 0.12
             plot_df_max_y['y_pos'] = plot_df_max_y[dependent_var_name] + buffer
+            
+            # Adjust for variables with very high values (like C/N Ratio)
+            if plot_df_max_y['y_pos'].max() > 2 * max_y_overall:
+                plot_df_max_y['y_pos'] = max_y_overall + (data_range * 0.15)
+                
             plot_df_max_y = plot_df_max_y.dropna(subset=['y_pos', 'cld_letter']).copy()
 
         fig, ax = plt.subplots(figsize=(14, 8))
@@ -348,11 +363,12 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
             alpha=0.8
         )
 
-        # Add sample size annotations
+        # Add sample size annotations (below the minimum)
         for idx, group in enumerate(present_groups):
             n = sum(plot_df[group_var_name] == group)
+            y_pos_n = min_y_overall - (data_range * 0.05)
             ax.text(
-                idx, min_y_overall * 0.95, 
+                idx, y_pos_n, 
                 f"n={n}", 
                 ha='center', 
                 va='top',
@@ -367,6 +383,11 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
                     group_data = plot_df_max_y[plot_df_max_y[group_var_name] == group]
                     y_pos = group_data['y_pos'].values[0]
                     letter = group_data['cld_letter'].values[0]
+                    
+                    # Ensure letter is within plot boundaries
+                    if y_pos > max_y_overall * 1.5:
+                        y_pos = max_y_overall * 1.1
+                        
                     ax.text(
                         x=idx,
                         y=y_pos,
@@ -399,9 +420,20 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         # Add grid for readability
         plt.grid(axis='y', alpha=0.3)
         
-        # Adjust y-axis limits
-        y_upper_limit = plot_df_max_y['y_pos'].max() * 1.2 if not plot_df_max_y.empty else max_y_overall * 1.2
-        plt.ylim(min_y_overall * 0.9, y_upper_limit)
+        # Adjust y-axis limits dynamically
+        y_lower_limit = min_y_overall * 0.85
+        if min_y_overall > 0:
+            y_lower_limit = max(0, min_y_overall * 0.9)
+            
+        y_upper_limit = max_y_overall * 1.25
+        
+        # Adjust for CLD letters
+        if not plot_df_max_y.empty():
+            max_cld_y = plot_df_max_y['y_pos'].max()
+            if max_cld_y > y_upper_limit:
+                y_upper_limit = max_cld_y * 1.1
+                
+        plt.ylim(y_lower_limit, y_upper_limit)
         
         # Improve layout
         plt.tight_layout()
@@ -410,6 +442,13 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         
     except Exception as e:
         st.error(f"Error generating visualization: {str(e)}")
+        # Debug information
+        st.write(f"Debug Info for {dependent_var_name}:")
+        st.write(f"Min value: {min_y_overall}, Max value: {max_y_overall}")
+        st.write(f"Data range: {data_range}")
+        if 'plot_df_max_y' in locals():
+            st.write("CLD positions:", plot_df_max_y)
+        st.write("Data Sample:", plot_df[[group_var_name, dependent_var_name]].head())
 
     # --- Interpretation of Results ---
     with st.expander(f"✨ Detailed Interpretation"):
