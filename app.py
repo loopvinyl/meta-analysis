@@ -73,21 +73,40 @@ def assign_material_group(source):
         return "Uncategorized"
     source = str(source).lower()
     
-    # Ordens de checagem atualizadas
-    if "coffee" in source or "scg" in source or "borra" in source:
+    # 1. Agro-Industrial Waste (Coffee)
+    coffee_keywords = ["coffee", "scg", "borra"]
+    if any(kw in source for kw in coffee_keywords):
         return "Agro-Industrial Waste (Coffee)"
-    if "pineapple" in source or "abacaxi" in source or "banana" in source or "bl" in source:
+    
+    # 2. Agro-Industrial Waste (Fruit)
+    fruit_keywords = ["pineapple", "abacaxi", "banana", "bl"]
+    if any(kw in source for kw in fruit_keywords):
         return "Agro-Industrial Waste (Fruit)"
-    if "bagasse" in source or "crop residue" in source or "straw" in source:
+    
+    # 3. Agro-Industrial Waste (Crop Residues)
+    crop_keywords = ["bagasse", "crop residue", "straw", "palha", "sugarcane"]
+    if any(kw in source for kw in crop_keywords):
         return "Agro-Industrial Waste (Crop Residues)"
-    if "manure" in source or "dung" in source or "cattle" in source or "cow" in source or "cd" in source or "bovine" in source:
+    
+    # 4. Animal Manure-Based
+    manure_keywords = ["manure", "dung", "cattle", "cow", "bovine", "cd", "vr", "fezes"]
+    if any(kw in source for kw in manure_keywords):
         return "Animal Manure-Based"
+    
+    # 5. Food Waste
     if "food" in source or "kitchen" in source:
         return "Food Waste"
-    if "vegetable" in source or "grass" in source or "water hyacinth" in source or "weeds" in source:
+    
+    # 6. Green Waste
+    green_keywords = ["vegetable", "grass", "water hyacinth", "weeds", "parthenium", "green"]
+    if any(kw in source for kw in green_keywords):
         return "Green Waste"
-    if "cardboard" in source or "paper" in source or "newspaper" in source:
+    
+    # 7. Cellulosic Waste
+    cellulosic_keywords = ["cardboard", "paper", "newspaper", "filters", "filtro", "cellulose"]
+    if any(kw in source for kw in cellulosic_keywords):
         return "Cellulosic Waste"
+    
     return "Uncategorized"
 
 # --- Get category description ---
@@ -107,7 +126,7 @@ def get_category_description(category):
 def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     st.markdown(f"#### Analysis for: **{dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
 
-    # Convert to numeric and clean
+    # Convert to numeric and clean (treat '-' as NaN)
     data[dependent_var_name] = pd.to_numeric(data[dependent_var_name], errors='coerce')
     data_clean = data.dropna(subset=[dependent_var_name, group_var_name]).copy()
     
@@ -456,9 +475,17 @@ st.markdown("---")
 
 # --- Data Loading ---
 try:
-    df = pd.read_excel('dados_vermicomposto_v3.xlsx', sheet_name='Planilha1')
+    # Alterado para o novo nome do arquivo
+    df = pd.read_excel('dados_vermicomposto_v5.xlsx', sheet_name='Planilha1')
+    
+    # Tratar valores '-' como NaN
+    numeric_cols = ['N (%)', 'P (%)', 'K (%)', 'pH_final', 'CN_Ratio_final']
+    for col in numeric_cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            
 except FileNotFoundError:
-    st.error("Error: 'dados_vermicomposto_v3.xlsx' file not found. Please ensure it's in the same folder.")
+    st.error("Error: 'dados_vermicomposto_v5.xlsx' file not found. Please ensure it's in the same folder.")
     st.stop()
 
 # --- Column Renaming ---
@@ -479,7 +506,12 @@ df['Material_Group'] = df['Source_Material'].apply(assign_material_group)
 
 # --- Filter out non-vermicompost entries ---
 if 'Additional Observations' in df.columns:
-    df = df[~df['Additional Observations'].str.contains('drum compost|not vermicompost', case=False, na=False)]
+    # Filtro mais robusto para remover não-vermicompostos
+    filter_condition = (
+        df['Additional Observations'].str.contains('drum compost|not vermicompost', case=False, na=False) |
+        df['Source_Material'].str.contains('drum compost', case=False, na=False)
+    )
+    df = df[~filter_condition]
 
 # --- Display Waste Types by Group ---
 st.markdown("---")
