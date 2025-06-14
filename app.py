@@ -68,6 +68,61 @@ def get_compact_letter_display(p_values_matrix, group_names):
     return final_letters
 
 
+# --- Material Group Categorization Function ---
+def assign_material_group(source):
+    if pd.isna(source):
+        return "Uncategorized"
+    
+    source = str(source).lower()
+    
+    # Animal Manure-Based
+    manure_keywords = ["manure", "dung", "cattle", "cow", "pig", "horse", "bovine", 
+                      "cd", "b0", "b25", "b50", "vr", "cow dung"]
+    if any(kw in source for kw in manure_keywords):
+        return "Animal Manure-Based"
+    
+    # Agro-Industrial Waste (Coffee)
+    if "coffee" in source or "scg" in source or "borra" in source:
+        return "Agro-Industrial Waste (Coffee)"
+    
+    # Agro-Industrial Waste (Fruit)
+    fruit_keywords = ["pineapple", "abacaxi", "vpc", "banana", "bl"]
+    if any(kw in source for kw in fruit_keywords):
+        return "Agro-Industrial Waste (Fruit)"
+    
+    # Agro-Industrial Waste (Crop Residues)
+    if "bagasse" in source or "crop residue" in source or "straw" in source:
+        return "Agro-Industrial Waste (Crop Residues)"
+    
+    # Food Waste
+    if "food" in source or "kitchen" in source:
+        return "Food Waste"
+    
+    # Green Waste
+    green_keywords = ["vegetable", "grass", "water hyacinth", "parthenium", "weeds", "whvc"]
+    if any(kw in source for kw in green_keywords):
+        return "Green Waste"
+    
+    # Cellulosic Waste
+    cellulosic_keywords = ["newspaper", "paper", "cardboard", "cotton"]
+    if any(kw in source for kw in cellulosic_keywords):
+        return "Cellulosic Waste"
+    
+    return "Uncategorized"
+
+# --- Get category description ---
+def get_category_description(category):
+    descriptions = {
+        "Animal Manure-Based": "Primary component is animal manure (>50%)",
+        "Agro-Industrial Waste (Coffee)": "Coffee processing residues",
+        "Agro-Industrial Waste (Fruit)": "Fruit processing wastes (pineapple, banana, etc.)",
+        "Agro-Industrial Waste (Crop Residues)": "Agricultural crop residues (bagasse, straw, etc.)",
+        "Food Waste": "Kitchen and food processing wastes",
+        "Green Waste": "Fresh plant materials (vegetables, grass, weeds, etc.)",
+        "Cellulosic Waste": "Paper, cardboard, cotton and other cellulose-rich materials"
+    }
+    return descriptions.get(category, "No description available")
+
 # --- Function to run statistical analysis and display results ---
 def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     st.markdown(f"#### Analysis for: **{dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
@@ -380,48 +435,6 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         else:
             st.markdown("No significant differences detected between groups")
 
-# --- Material Group Categorization Function ---
-def assign_material_group(source):
-    if pd.isna(source):
-        return "Uncategorized"
-    
-    source = str(source).lower()
-    
-    # Animal Manure-Based
-    manure_keywords = ["manure", "dung", "cattle", "cow", "pig", "horse", "bovine", 
-                      "cd", "b0", "b25", "b50", "vr", "cow dung"]
-    if any(kw in source for kw in manure_keywords):
-        return "Animal Manure-Based"
-    
-    # Agro-Industrial Waste (Coffee)
-    if "coffee" in source or "scg" in source or "borra" in source:
-        return "Agro-Industrial Waste (Coffee)"
-    
-    # Agro-Industrial Waste (Fruit)
-    fruit_keywords = ["pineapple", "abacaxi", "vpc", "banana", "bl"]
-    if any(kw in source for kw in fruit_keywords):
-        return "Agro-Industrial Waste (Fruit)"
-    
-    # Agro-Industrial Waste (Crop Residues)
-    if "bagasse" in source or "crop residue" in source or "straw" in source:
-        return "Agro-Industrial Waste (Crop Residues)"
-    
-    # Food Waste
-    if "food" in source or "kitchen" in source:
-        return "Food Waste"
-    
-    # Green Waste
-    green_keywords = ["vegetable", "grass", "water hyacinth", "parthenium", "weeds", "whvc"]
-    if any(kw in source for kw in green_keywords):
-        return "Green Waste"
-    
-    # Cellulosic Waste
-    cellulosic_keywords = ["newspaper", "paper", "cardboard", "cotton"]
-    if any(kw in source for kw in cellulosic_keywords):
-        return "Cellulosic Waste"
-    
-    return "Uncategorized"
-
 
 # --- Streamlit App Configuration ---
 st.set_page_config(
@@ -477,19 +490,6 @@ with st.expander("View detailed waste type categorization"):
     else:
         st.warning("Article information not available in dataset")
 st.markdown("---")
-
-# --- Get category description ---
-def get_category_description(category):
-    descriptions = {
-        "Animal Manure-Based": "Primary component is animal manure (>50%)",
-        "Agro-Industrial Waste (Coffee)": "Coffee processing residues",
-        "Agro-Industrial Waste (Fruit)": "Fruit processing wastes (pineapple, banana, etc.)",
-        "Agro-Industrial Waste (Crop Residues)": "Agricultural crop residues (bagasse, straw, etc.)",
-        "Food Waste": "Kitchen and food processing wastes",
-        "Green Waste": "Fresh plant materials (vegetables, grass, weeds, etc.)",
-        "Cellulosic Waste": "Paper, cardboard, cotton and other cellulose-rich materials"
-    }
-    return descriptions.get(category, "No description available")
 
 # --- Analysis Variables ---
 numerical_variables = {
