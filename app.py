@@ -1,5 +1,5 @@
 def assign_material_group(source):
-    if pd.isna(source):
+    if pd.isna(source): 
         return "Uncategorized"
     source = str(source).lower()
     
