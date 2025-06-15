@@ -126,7 +126,7 @@ def get_category_description(category):
 def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
     st.markdown(f"#### Analysis for: **{dependent_var_name.replace('_', ' ').replace('perc', '%').replace('final', '')}**")
 
-    # Convert to numeric and clean (treat '-' as NaN)
+    # Convert to numeric and clean
     data[dependent_var_name] = pd.to_numeric(data[dependent_var_name], errors='coerce')
     data_clean = data.dropna(subset=[dependent_var_name, group_var_name]).copy()
     
@@ -477,12 +477,13 @@ st.markdown("---")
 try:
     df = pd.read_excel('dados_vermicomposto_v5.xlsx', sheet_name='Planilha1')
     
-    # Traduzir valores em português
+    # Traduzir valores em português e tratar valores inválidos
     df.replace({
         'Não reportado': 'Not reported',
         'Não reportada': 'Not reported',
         'Valores finais': 'Final values',
-        'vermicomposto final': 'final vermicompost'
+        'vermicomposto final': 'final vermicompost',
+        '-': np.nan  # Tratar hífen como valor faltante
     }, inplace=True)
     
     # Renomear colunas para padrão em inglês
@@ -505,17 +506,15 @@ try:
     }
     df.rename(columns=column_map, inplace=True)
     
-    # Converter colunas numéricas (tratar valores não numéricos)
-    numeric_cols = ['N_perc', 'P_perc', 'K_perc', 'pH_final', 'C_N_Ratio_final']
+    # Converter colunas numéricas
+    numeric_cols = ['N_perc', 'P_perc', 'K_perc', 'pH_final', 'C_N_Ratio_final', 'Duration_days']
     for col in numeric_cols:
+        # Converter para numérico, tratando erros como NaN
         df[col] = pd.to_numeric(df[col], errors='coerce')
     
-    # Preencher valores ausentes na duração
-    if 'Duration_days' in df.columns:
-        df['Duration_days'].fillna(0, inplace=True)
-        df['Duration_days'] = df['Duration_days'].astype(int)
-        df.loc[df['Duration_days'] == 0, 'Duration_days'] = None
-        
+    # Remover tratamento de duração que causava erro
+    # Não é necessário converter para int, manter como float com NaN
+    
 except FileNotFoundError:
     st.error("Error: 'dados_vermicomposto_v5.xlsx' file not found. Please ensure it's in the same folder.")
     st.stop()
