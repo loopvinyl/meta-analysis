@@ -32,7 +32,7 @@ def get_compact_letter_display(p_values_matrix, group_names):
                     p_val = 1.0
             
             if p_val < 0.05:
-                significant_pairs.append(tuple(sorted(tuple([g1, g2])))
+                significant_pairs.append(tuple(sorted(tuple([g1, g2]))))
 
     group_letters = {g: [] for g in group_names}
     clusters = []
