@@ -67,71 +67,49 @@ def get_compact_letter_display(p_values_matrix, group_names):
     final_letters = {group: "".join(sorted(list(set(letters)))) for group, letters in group_letters.items()}
     return final_letters
 
-# --- Material Group Categorization Function ---
+# --- Material Group Categorization Function (ATUALIZADA) ---
 def assign_material_group(source):
     if pd.isna(source):
         return "Uncategorized"
     source = str(source).lower()
     
-    # 1. Animal Manure-Based (Prioridade máxima)
+    # 1. Manure-Based (Todos os tipos de esterco + misturas)
     manure_keywords = ["manure", "dung", "cattle", "cow", "bovine", "cd", "vr", "fezes", "estrume", "gado", "vaca"]
     if any(kw in source for kw in manure_keywords):
-        # Casos especiais com misturas
-        if "coffee" in source or "borra" in source or "scg" in source:
-            return "Manure + Coffee Waste"
-        if "pineapple" in source or "abacaxi" in source or "fruit" in source or "fruta" in source:
-            return "Manure + Fruit Waste"
-        if "bagasse" in source or "crop" in source or "residue" in source or "resíduo" in source:
-            return "Manure + Crop Residues"
-        if "kitchen" in source or "food" in source:
-            return "Manure + Food Waste"
-        return "Animal Manure-Based"
+        return "Manure-Based"
     
-    # 2. Coffee Waste
+    # 2. Coffee Waste (Prioridade alta - mantido separado)
     coffee_keywords = ["coffee", "scg", "borra", "café"]
     if any(kw in source for kw in coffee_keywords):
         return "Coffee Waste"
     
-    # 3. Fruit Waste
-    fruit_keywords = ["pineapple", "abacaxi", "fruit", "fruta", "peels"]
-    if any(kw in source for kw in fruit_keywords):
-        return "Fruit Waste"
+    # 3. Agro-Industrial Waste (Resíduos de frutas + alimentos + cultivos)
+    agro_industrial_keywords = ["pineapple", "abacaxi", "fruit", "fruta", "peels", 
+                                "food", "kitchen", "alimento", 
+                                "bagasse", "crop", "residue", "resíduo", "straw", "palha", "sugarcane", "bagaço"]
+    if any(kw in source for kw in agro_industrial_keywords):
+        return "Agro-Industrial Waste"
     
-    # 4. Food Waste
-    if "food" in source or "kitchen" in source or "alimento" in source:
-        return "Food Waste"
+    # 4. Plant Waste (Materiais vegetais frescos)
+    plant_keywords = ["vegetable", "grass", "water hyacinth", "weeds", "parthenium", "green", "verde", "hortaliças"]
+    if any(kw in source for kw in plant_keywords):
+        return "Plant Waste"
     
-    # 5. Crop Residues
-    crop_keywords = ["bagasse", "crop residue", "straw", "palha", "sugarcane", "bagaço"]
-    if any(kw in source for kw in crop_keywords):
-        return "Crop Residues"
-    
-    # 6. Green Waste
-    green_keywords = ["vegetable", "grass", "water hyacinth", "weeds", "parthenium", "green", "verde", "hortaliças"]
-    if any(kw in source for kw in green_keywords):
-        return "Green Waste"
-    
-    # 7. Cellulosic Waste
+    # 5. Cellulosic Waste
     cellulosic_keywords = ["cardboard", "paper", "filters", "filtro", "cellulose", "papel", "papelão"]
     if any(kw in source for kw in cellulosic_keywords):
         return "Cellulosic Waste"
     
     return "Uncategorized"
 
-# --- Get category description ---
+# --- Get category description (ATUALIZADA) ---
 def get_category_description(category):
     descriptions = {
-        "Animal Manure-Based": "Vermicompostos com >50% de esterco animal",
-        "Manure + Coffee Waste": "Misturas de esterco animal com resíduos de café",
-        "Manure + Fruit Waste": "Misturas de esterco animal com resíduos de frutas",
-        "Manure + Crop Residues": "Misturas de esterco animal com resíduos de cultivos",
-        "Manure + Food Waste": "Misturas de esterco animal com resíduos alimentares",
-        "Coffee Waste": "Resíduos de café processado (borra)",
-        "Fruit Waste": "Resíduos de processamento de frutas (abacaxi, etc.)",
-        "Food Waste": "Resíduos de cozinha/processamento de alimentos",
-        "Crop Residues": "Resíduos agrícolas (bagaço, palha, etc.)",
-        "Green Waste": "Materiais vegetais frescos (hortaliças, grama, etc.)",
-        "Cellulosic Waste": "Materiais ricos em celulose (papelão, filtros)"
+        "Manure-Based": "Todos os vermicompostos com base em esterco animal (puros ou misturas)",
+        "Coffee Waste": "Resíduos de café processado (borra) sem esterco",
+        "Agro-Industrial Waste": "Resíduos de processamento agrícola e industrial (frutas, alimentos, cultivos)",
+        "Plant Waste": "Materiais vegetais frescos (hortaliças, grama, plantas aquáticas)",
+        "Cellulosic Waste": "Materiais ricos em celulose (papelão, filtros, papel)"
     }
     return descriptions.get(category, "Sem descrição disponível")
 
@@ -292,32 +270,20 @@ def run_statistical_analysis_and_plot(data, dependent_var_name, group_var_name):
         return
         
     try:
-        # Define color palette and order
+        # Define color palette and order (ATUALIZADA)
         group_palette = {
-            "Animal Manure-Based": "#1f77b4",
-            "Manure + Coffee Waste": "#ff7f0e",
-            "Manure + Fruit Waste": "#9467bd",
-            "Manure + Crop Residues": "#8c564b",
-            "Manure + Food Waste": "#2ca02c",
-            "Coffee Waste": "#d62728",
-            "Fruit Waste": "#e377c2",
-            "Food Waste": "#7f7f7f",
-            "Crop Residues": "#bcbd22",
-            "Green Waste": "#17becf",
-            "Cellulosic Waste": "#8c564b"
+            "Manure-Based": "#1f77b4",          # Azul
+            "Coffee Waste": "#d62728",           # Vermelho
+            "Agro-Industrial Waste": "#2ca02c", # Verde
+            "Plant Waste": "#9467bd",            # Roxo
+            "Cellulosic Waste": "#8c564b"        # Marrom
         }
         
         group_order = [
-            "Animal Manure-Based",
-            "Manure + Coffee Waste",
-            "Manure + Fruit Waste",
-            "Manure + Crop Residues",
-            "Manure + Food Waste",
+            "Manure-Based",
             "Coffee Waste",
-            "Fruit Waste",
-            "Food Waste",
-            "Crop Residues",
-            "Green Waste",
+            "Agro-Industrial Waste",
+            "Plant Waste",
             "Cellulosic Waste"
         ]
         
@@ -495,7 +461,6 @@ st.markdown("---")
 
 # --- Data Loading with Corrections ---
 try:
-    # CORREÇÃO: Usar o nome correto do arquivo (v6)
     df = pd.read_excel('dados_vermicomposto_v6.xlsx', sheet_name='Planilha1')
     
     # Renomear colunas para padrão em inglês
@@ -521,7 +486,6 @@ try:
     # Converter colunas numéricas
     numeric_cols = ['N_perc', 'P_perc', 'K_perc', 'pH_final', 'C_N_Ratio_final', 'Duration_days']
     for col in numeric_cols:
-        # Converter para numérico, tratando erros como NaN
         df[col] = pd.to_numeric(df[col], errors='coerce')
     
     # DEPURAÇÃO: Mostrar dados brutos
@@ -535,7 +499,7 @@ except Exception as e:
     st.error(f"Error loading data: {str(e)}")
     st.stop()
 
-# --- Apply Material Group Categorization ---
+# --- Apply Material Group Categorization (ATUALIZADA) ---
 df['Material_Group'] = df['Source_Material'].apply(assign_material_group)
 
 # --- DEPURAÇÃO: Mostrar dados categorizados ---
